@@ -1,14 +1,28 @@
 import os
-from datetime import datetime
+from datetime import datetime, date
+import time
 import csv
 
 # Since time and day are used throughout the whole program they are
-# declared as global variables to avoid unnecessary definitions of the variables
-time = datetime.now().time()
-day = datetime.now().weekday()
+# declared as global variables to avoid unnecessary redefinitions of the variables
+rec_time = datetime.now().time()
+rec_day = datetime.now().weekday()
 
 
-def check_day():
+def record_duration():
+    """
+        Records from when connection drop occurs to the time it is restored,
+        returns the time between drop and restoration
+    """
+    start_time = time.time()
+    ping()
+    while ping() != 0:
+        ping()
+
+    return time.time() - start_time
+
+
+def check_day_value():
     """
         Reads the data in the 'Day' column from faults.csv,
         if the days are the same it will tell update_csv() to append data,
@@ -19,7 +33,7 @@ def check_day():
         read = csv.DictReader(file)
         for row in read:
             print(row['Day'])
-            if row['Day'] == get_day(day):
+            if row['Day'] == get_day(rec_day):
                 print('appended')
                 update_csv()
             else:
@@ -42,12 +56,13 @@ def update_csv():
     """
         Appends data to faults.csv
     """
+    duration =  record_duration()
     with open('faults.csv', 'a', newline='') as file:
-        headings = ['Time', 'Day']
+        headings = ['Time', 'Day', 'Duration']
         write = csv.DictWriter(file, fieldnames=headings)
-        write.writerow({'Time': time, 'Day': get_day(day)})
+        write.writerow({'Time': rec_time, 'Day': get_day(rec_day), 'Duration': duration})
     file.close()
-    ping()
+    connection_check()
 
 
 def write_to_csv():
@@ -55,41 +70,39 @@ def write_to_csv():
         Writes the time of connection drops and the day it occurs
         to a csv.
     """
+    duration = record_duration()
     with open('faults.csv', 'w', newline='') as file:
-        headings = ['Time', 'Day']
+        headings = ['Time', 'Day', 'Duration']
         write = csv.DictWriter(file, fieldnames=headings)
         write.writeheader()
-        write.writerow({'Time': time, 'Day': get_day(day)})
+        write.writerow({'Time': rec_time, 'Day': get_day(rec_day), 'Duration': duration})
     file.close()
-    ping()
+    connection_check()
 
 
 def ping():
     """
         Pings the Google DNS server to check whether the connection is on or off
     """
-    check = os.system('ping 8.8.8.8')
-    if check == 0:
-        check_day()
+    conn = os.system('ping 8.8.8.8')
+    return conn
+
+
+def connection_check():
+    while ping() == 0:
+        ping()
     else:
-        check_day()
+        check_day_value()
 
 
 def main():
-    initiate = 0
-    if initiate == 0:
-        # Is initiated each time the program starts
-        # since the program shouldn't stop, this statement will only run once
-        with open('faults.csv', 'w', newline='') as file:
-            headings = ['Time', 'Day']
-            write = csv.DictWriter(file, fieldnames=headings)
-            write.writeheader()
-            write.writerow({'Time': None, 'Day': None})     # Initiates csv with None values
-        ping()
-        initiate += 1
+    with open('faults.csv', 'w', newline='') as file:
+        headings = ['Time', 'Day', 'Duration']
+        write = csv.DictWriter(file, fieldnames=headings)
+        write.writeheader()
+        write.writerow({'Time': None, 'Day': None, 'Duration': None})  # Initiates csv with None values
 
-    # Shouldn't reach this point, if it does the program will finish
-    return False
+    connection_check()
 
 
 if __name__ == "__main__":
